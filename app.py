@@ -114,27 +114,45 @@ hr_question_index = 0
 
 def gemini_mark_hr_answer(answer_text):
     try:
-        prompt = (f"Mark the following HR interview answer on a scale from 0.0 to 1.0 for be liberal in marking dont be very strict give them enough marks  "
-                  f"clarity, relevance, and professionalism: '{answer_text}'. Return only the mark as a floating point number (e.g., 0.75).")
-        #response_obj = model.generate_content(prompt)
+        prompt = (
+            f"Mark the following HR interview answer on an INTEGER scale from 0 to 5 "
+            f"based on clarity, relevance, professionalism, and communication quality.\n\n"
+            f"Answer: '{answer_text}'\n\n"
+            f"Return only one integer: 0, 1, 2, 3, 4, or 5."
+        )
         response_text = generate_with_groq(prompt)
-        mark = float(response_text.strip().split()[0])
+        mark = int(response_text.strip().split()[0])
+
+        if mark < 0:
+            mark = 0
+        elif mark > 5:
+            mark = 5
+
         return mark
     except Exception as e:
         logger.error(f"Error in marking HR answer: {e}")
-        return 0.5
+        return 2
 
 def gemini_mark_answer(answer_text):
     try:
-        prompt = (f"Mark the following technical answer on a scale from 0.0 to 1.0 for give marks in a liberal fashion dont be very strict in giving marks give them enough marks"
-                  f"accuracy and relevance: '{answer_text}'. Return only the mark as a floating point number (for example, 0.75).")
-        #response_obj = model.generate_content(prompt)
+        prompt = (
+            f"Mark the following technical interview answer on an INTEGER scale from 0 to 5 "
+            f"based on accuracy, relevance, clarity, and completeness.\n\n"
+            f"Answer: '{answer_text}'\n\n"
+            f"Return only one integer: 0, 1, 2, 3, 4, or 5."
+        )
         response_text = generate_with_groq(prompt)
-        mark = float(response_text.strip().split()[0])
+        mark = int(response_text.strip().split()[0])
+
+        if mark < 0:
+            mark = 0
+        elif mark > 5:
+            mark = 5
+
         return mark
     except Exception as e:
-        logger.error(f"Error in marking answer with Gemini: {e}")
-        return 0.5
+        logger.error(f"Error in marking technical answer: {e}")
+        return 2
 
 def detect_emotion(frame):
     try:
@@ -364,10 +382,10 @@ def sign_up_route():
 
         profile_data = {
             "user_id": user_id,
-            "tech_score": 0.0,
+            "tech_score": 0,
             "tech_max_score": 10,
-            "hr_score": 0.0,
-            "hr_max_score": 8,
+            "hr_score": 0,
+            "hr_max_score": 10,
             "hr_emotions": [],  
             "hr_soft_skills": [],  
             "last_updated": datetime.utcnow().isoformat()
@@ -502,11 +520,11 @@ def submit_response():
             tech_question_count += 1
 
             if tech_question_count >= MAX_TECH_QUESTIONS:
-                final_message = f"Tech Interview Completed. Your score is {tech_score} out of {MAX_TECH_QUESTIONS}."
+                final_message = f"Tech Interview Completed. Your score is {int(tech_score)} out of 10."
                 conversation_history.append({"role": "interviewer", "text": final_message})
 
                 update_data = {
-                    "tech_score": float(tech_score),
+                    "tech_score": int(tech_score),
                     "last_updated": datetime.utcnow().isoformat()
                 }
                 logger.info(f"Attempting to update tech_score to {tech_score} for user_id: {current_user_id}")
@@ -522,8 +540,8 @@ def submit_response():
                 result = {
                     "question": final_message,
                     "completed": True,
-                    "score": float(tech_score),
-                    "max_score": MAX_TECH_QUESTIONS
+                    "score": int(tech_score),
+                    "max_score": 10
                 }
             else:
                 next_question = generate_tech_question(response_text)
@@ -541,11 +559,11 @@ def submit_response():
             hr_soft_skills_history.append(soft_skills)
 
             if hr_question_count >= MAX_HR_QUESTIONS:
-                final_message = f"HR Interview Completed. Your score is {hr_score} out of {MAX_HR_QUESTIONS}. Check your profile for a detailed report."
+                final_message = f"HR Interview Completed. Your score is {int(hr_score)} out of 10. Check your profile for a detailed report."
                 conversation_history.append({"role": "interviewer", "text": final_message})
 
                 update_data = {
-                    "hr_score": float(hr_score),
+                    "hr_score": int(hr_score),
                     "hr_emotions": hr_emotions_history,
                     "hr_soft_skills": hr_soft_skills_history,
                     "last_updated": datetime.utcnow().isoformat()
@@ -557,8 +575,8 @@ def submit_response():
                 result = {
                     "question": final_message,
                     "completed": True,
-                    "score": float(hr_score),
-                    "max_score": MAX_HR_QUESTIONS
+                    "score": int(hr_score),
+                    "max_score": 10
                 }
             else:
                 next_question = generate_hr_question()
