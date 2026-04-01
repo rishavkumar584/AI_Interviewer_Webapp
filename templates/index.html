@@ -201,6 +201,43 @@
       #wrapper.logged-in #footer {
         display: block;
       }
+    
+            .voice-ui {
+        display: none;
+        margin-top: 1rem;
+        text-align: center;
+      }
+
+      .voice-circle {
+        width: 92px;
+        height: 92px;
+        margin: 0 auto 0.75rem auto;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        background: rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 4px;
+        padding: 16px 12px;
+        box-shadow: 0 0 18px rgba(255, 255, 255, 0.08);
+      }
+
+      .voice-bar {
+        width: 6px;
+        height: 12px;
+        min-height: 12px;
+        border-radius: 999px;
+        background: #ffffff;
+        transition: height 0.08s linear;
+      }
+
+      .recording-status {
+        margin-top: 0.45rem;
+        font-size: 0.95rem;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
     </style>
   </head>
   <body class="is-preload">
@@ -338,7 +375,17 @@
                     </button>
                   </li>
                 </ul>
-                <p id="recordingStatusTech"></p>
+               <div id="voiceUITech" class="voice-ui">
+                  <div class="voice-circle">
+                    <div class="voice-bar" id="voiceBarTech1"></div>
+                    <div class="voice-bar" id="voiceBarTech2"></div>
+                    <div class="voice-bar" id="voiceBarTech3"></div>
+                    <div class="voice-bar" id="voiceBarTech4"></div>
+                    <div class="voice-bar" id="voiceBarTech5"></div>
+                  </div>
+                  <p id="recordingStatusTech" class="recording-status"></p>
+                </div>
+
                 <audio id="audioPlayerTech" controls></audio>
                 <p id="questionTextTech"></p>
                 <p id="feedbackTextTech"></p>
@@ -378,7 +425,18 @@
                     </button>
                   </li>
                 </ul>
-                <p id="recordingStatusHR"></p>
+                
+                <div id="voiceUIHR" class="voice-ui">
+                  <div class="voice-circle">
+                    <div class="voice-bar" id="voiceBarHR1"></div>
+                    <div class="voice-bar" id="voiceBarHR2"></div>
+                    <div class="voice-bar" id="voiceBarHR3"></div>
+                    <div class="voice-bar" id="voiceBarHR4"></div>
+                    <div class="voice-bar" id="voiceBarHR5"></div>
+                  </div>
+                  <p id="recordingStatusHR" class="recording-status"></p>
+                </div>
+
                 <audio id="audioPlayerHR" controls></audio>
                 <p id="questionTextHR"></p>
                 <p id="feedbackTextHR"></p>
@@ -593,6 +651,10 @@
         stopRecording("hr");
         stopCamera("tech");
         stopCamera("hr");
+        stopVoiceVisualizer("tech");
+        stopVoiceVisualizer("hr");
+        hideVoiceUI("tech");
+        hideVoiceUI("hr");
         document.getElementById("audioPlayerTech").pause();
         document.getElementById("audioPlayerHR").pause();
       }
@@ -729,6 +791,15 @@
       let isSubmittingTech = false,
         isSubmittingHR = false;
 
+      let audioContextTech = null,
+        audioContextHR = null;
+      let analyserTech = null,
+        analyserHR = null;
+      let animationFrameTech = null,
+        animationFrameHR = null;
+      let dataArrayTech = null,
+        dataArrayHR = null;
+
       document
         .getElementById("startInterviewTech")
         .addEventListener("click", () => {
@@ -751,6 +822,147 @@
         .getElementById("submitAnswerHR")
         .addEventListener("click", () => submitAnswer("hr"));
 
+            function showVoiceUI(type, message = "Listening...") {
+        const suffix = type === "tech" ? "Tech" : "HR";
+        const voiceUI = document.getElementById(`voiceUI${suffix}`);
+        const statusEl = document.getElementById(`recordingStatus${suffix}`);
+
+        if (voiceUI) voiceUI.style.display = "block";
+        if (statusEl) statusEl.textContent = message;
+      }
+
+      function hideVoiceUI(type) {
+        const suffix = type === "tech" ? "Tech" : "HR";
+        const voiceUI = document.getElementById(`voiceUI${suffix}`);
+        const statusEl = document.getElementById(`recordingStatus${suffix}`);
+
+        if (voiceUI) voiceUI.style.display = "none";
+        if (statusEl) statusEl.textContent = "";
+      }
+
+      function setVoiceStatus(type, message) {
+        const suffix = type === "tech" ? "Tech" : "HR";
+        const statusEl = document.getElementById(`recordingStatus${suffix}`);
+        if (statusEl) statusEl.textContent = message;
+      }
+
+      function getVoiceBars(type) {
+        const suffix = type === "tech" ? "Tech" : "HR";
+        return [
+          document.getElementById(`voiceBar${suffix}1`),
+          document.getElementById(`voiceBar${suffix}2`),
+          document.getElementById(`voiceBar${suffix}3`),
+          document.getElementById(`voiceBar${suffix}4`),
+          document.getElementById(`voiceBar${suffix}5`)
+        ].filter(Boolean);
+      }
+
+      function resetVoiceBars(type) {
+        const bars = getVoiceBars(type);
+        bars.forEach((bar) => {
+          bar.style.height = "12px";
+        });
+      }
+
+      
+
+      function startVoiceVisualizer(type, stream) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+
+        const bars = getVoiceBars(type);
+
+        if (type === "tech") {
+          if (audioContextTech) {
+            audioContextTech.close().catch(() => {});
+          }
+
+          audioContextTech = new AudioContextClass();
+          const source = audioContextTech.createMediaStreamSource(stream);
+          analyserTech = audioContextTech.createAnalyser();
+          analyserTech.fftSize = 64;
+          source.connect(analyserTech);
+
+          dataArrayTech = new Uint8Array(analyserTech.frequencyBinCount);
+
+          const animate = () => {
+            if (!analyserTech) return;
+
+            analyserTech.getByteFrequencyData(dataArrayTech);
+            const step = Math.max(1, Math.floor(dataArrayTech.length / bars.length));
+
+            bars.forEach((bar, index) => {
+              const value = dataArrayTech[index * step] || 0;
+              const height = Math.max(12, Math.min(56, 12 + value * 0.35));
+              bar.style.height = `${height}px`;
+            });
+
+            animationFrameTech = requestAnimationFrame(animate);
+          };
+
+          animate();
+        } else {
+          if (audioContextHR) {
+            audioContextHR.close().catch(() => {});
+          }
+
+          audioContextHR = new AudioContextClass();
+          const source = audioContextHR.createMediaStreamSource(stream);
+          analyserHR = audioContextHR.createAnalyser();
+          analyserHR.fftSize = 64;
+          source.connect(analyserHR);
+
+          dataArrayHR = new Uint8Array(analyserHR.frequencyBinCount);
+
+          const animate = () => {
+            if (!analyserHR) return;
+
+            analyserHR.getByteFrequencyData(dataArrayHR);
+            const step = Math.max(1, Math.floor(dataArrayHR.length / bars.length));
+
+            bars.forEach((bar, index) => {
+              const value = dataArrayHR[index * step] || 0;
+              const height = Math.max(12, Math.min(56, 12 + value * 0.35));
+              bar.style.height = `${height}px`;
+            });
+
+            animationFrameHR = requestAnimationFrame(animate);
+          };
+
+          animate();
+        }
+      }
+
+      function stopVoiceVisualizer(type) {
+        if (type === "tech") {
+          if (animationFrameTech) {
+            cancelAnimationFrame(animationFrameTech);
+            animationFrameTech = null;
+          }
+          analyserTech = null;
+          if (audioContextTech) {
+            audioContextTech.close().catch(() => {});
+            audioContextTech = null;
+          }
+          dataArrayTech = null;
+        } else {
+          if (animationFrameHR) {
+            cancelAnimationFrame(animationFrameHR);
+            animationFrameHR = null;
+          }
+          analyserHR = null;
+          if (audioContextHR) {
+            audioContextHR.close().catch(() => {});
+            audioContextHR = null;
+          }
+          dataArrayHR = null;
+        }
+
+        resetVoiceBars(type);
+      }
+
+      
+
       async function startInterview(type) {
         const suffix = type === "tech" ? "Tech" : "HR";
         const statusEl = document.getElementById(`recordingStatus${suffix}`);
@@ -758,7 +970,7 @@
 
         try {
           submitBtn.disabled = true;
-          statusEl.textContent = "Starting interview...";
+          hideVoiceUI(type);
 
           await startCamera(type);
 
@@ -774,7 +986,7 @@
             document.getElementById(
               `feedbackText${suffix}`
             ).textContent = `Error: ${data.error}`;
-            statusEl.textContent = "";
+            hideVoiceUI(type);
             return;
           }
 
@@ -782,22 +994,19 @@
             data.question;
           document.getElementById(`feedbackText${suffix}`).textContent = "";
 
-          statusEl.textContent = "Speaking question...";
+          showVoiceUI(type, "Speaking question...");
           await speakText(data.question);
 
-          statusEl.textContent = "Recording your answer...";
           await startRecording(type);
           submitBtn.disabled = false;
         } catch (error) {
           document.getElementById(`feedbackText${suffix}`).textContent =
             "Error starting interview.";
-          statusEl.textContent = "";
+          hideVoiceUI(type);
         }
       }
 
-            async function startRecording(type) {
-        const suffix = type === "tech" ? "Tech" : "HR";
-        const statusEl = document.getElementById(`recordingStatus${suffix}`);
+      async function startRecording(type) {
         let mediaRecorder, audioChunks, stream;
 
         if (type === "tech") {
@@ -829,7 +1038,9 @@
           };
 
           mediaRecorder.start();
-          statusEl.textContent = "Recording your answer...";
+
+          showVoiceUI(type, "Listening...");
+          startVoiceVisualizer(type, stream);
         } catch (error) {
           alert("Could not access microphone. Please allow permissions.");
           if (type === "tech") {
@@ -837,7 +1048,8 @@
           } else {
             isRecordingHR = false;
           }
-          statusEl.textContent = "";
+          stopVoiceVisualizer(type);
+          hideVoiceUI(type);
         }
       }
 
@@ -855,6 +1067,8 @@
           stream = streamHR;
           isRecordingHR = false;
         }
+
+        stopVoiceVisualizer(type);
 
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
           mediaRecorder.stop();
@@ -887,7 +1101,8 @@
         else isSubmittingHR = true;
 
         submitBtn.disabled = true;
-        statusEl.textContent = "Submitting answer...";
+        stopVoiceVisualizer(type);
+        showVoiceUI(type, "Submitting Answer...");
 
         const audioBlob = await new Promise((resolve) => {
           const recorder = type === "tech" ? mediaRecorderTech : mediaRecorderHR;
@@ -925,11 +1140,11 @@
 
           const data = await response.json();
 
-          if (data.error) {
+                    if (data.error) {
             document.getElementById(
               `feedbackText${suffix}`
             ).textContent = `Error: ${data.error}`;
-            statusEl.textContent = "";
+            hideVoiceUI(type);
           } else {
             document.getElementById(`questionText${suffix}`).textContent =
               data.question;
@@ -947,17 +1162,16 @@
                 data.dominant_emotion || "None";
             }
 
-            statusEl.textContent = "Speaking question...";
+                        setVoiceStatus(type, "Speaking question...");
             await speakText(data.question);
 
-            statusEl.textContent = "Recording your answer...";
             await startRecording(type);
             submitBtn.disabled = false;
           }
         } catch (error) {
           document.getElementById(`feedbackText${suffix}`).textContent =
             "Error submitting response.";
-          statusEl.textContent = "";
+          hideVoiceUI(type);
         } finally {
           if (type === "tech") isSubmittingTech = false;
           else isSubmittingHR = false;
@@ -1055,20 +1269,22 @@
         stopRecording("hr");
         stopCamera("tech");
         stopCamera("hr");
+        stopVoiceVisualizer("tech");
+        stopVoiceVisualizer("hr");
+        hideVoiceUI("tech");
+        hideVoiceUI("hr");
 
         document.getElementById("questionTextTech").textContent = "";
         document.getElementById("questionTextHR").textContent = "";
         document.getElementById("feedbackTextTech").textContent = "";
         document.getElementById("feedbackTextHR").textContent = "";
-        document.getElementById("recordingStatusTech").textContent = "";
-        document.getElementById("recordingStatusHR").textContent = "";
         document.getElementById("audioPlayerTech").src = "";
         document.getElementById("audioPlayerHR").src = "";
 
         document.getElementById("submitAnswerTech").disabled = true;
         document.getElementById("submitAnswerHR").disabled = true;
       });
-      
+
     </script>
     <script>
       (function () {
