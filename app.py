@@ -115,44 +115,44 @@ hr_question_index = 0
 def gemini_mark_hr_answer(answer_text):
     try:
         prompt = (
-            f"Mark the following HR interview answer on an INTEGER scale from 0 to 5 "
-            f"based on clarity, relevance, professionalism, and communication quality.\n\n"
+            f"Mark the following HR interview answer on an INTEGER scale from 0 to 10 "
+            f"based on clarity, relevance, professionalism, confidence, and communication quality.\n\n"
             f"Answer: '{answer_text}'\n\n"
-            f"Return only one integer: 0, 1, 2, 3, 4, or 5."
+            f"Return only one integer: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10."
         )
         response_text = generate_with_groq(prompt)
         mark = int(response_text.strip().split()[0])
 
         if mark < 0:
             mark = 0
-        elif mark > 5:
-            mark = 5
+        elif mark > 10:
+            mark = 10
 
         return mark
     except Exception as e:
         logger.error(f"Error in marking HR answer: {e}")
-        return 2
+        return 4
 
 def gemini_mark_answer(answer_text):
     try:
-        prompt = (
-            f"Mark the following technical interview answer on an INTEGER scale from 0 to 5 "
-            f"based on accuracy, relevance, clarity, and completeness.\n\n"
-            f"Answer: '{answer_text}'\n\n"
-            f"Return only one integer: 0, 1, 2, 3, 4, or 5."
-        )
-        response_text = generate_with_groq(prompt)
-        mark = int(response_text.strip().split()[0])
+            prompt = (
+                f"Mark the following technical interview answer on an INTEGER scale from 0 to 10 "
+                f"based on accuracy, relevance, clarity, and completeness.\n\n"
+                f"Answer: '{answer_text}'\n\n"
+                f"Return only one integer: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10."
+            )
+            response_text = generate_with_groq(prompt)
+            mark = int(response_text.strip().split()[0])
 
-        if mark < 0:
-            mark = 0
-        elif mark > 5:
-            mark = 5
+            if mark < 0:
+                mark = 0
+            elif mark > 10:
+                mark = 10
 
-        return mark
+            return mark
     except Exception as e:
         logger.error(f"Error in marking technical answer: {e}")
-        return 2
+        return 4
 
 def detect_emotion(frame):
     try:
@@ -383,9 +383,9 @@ def sign_up_route():
         profile_data = {
             "user_id": user_id,
             "tech_score": 0,
-            "tech_max_score": 10,
+            "tech_max_score": 20,
             "hr_score": 0,
-            "hr_max_score": 10,
+            "hr_max_score": 20,
             "hr_emotions": [],  
             "hr_soft_skills": [],  
             "last_updated": datetime.utcnow().isoformat()
@@ -422,6 +422,7 @@ def sign_in_route():
     except Exception as e:
         logger.error(f"Error in sign-in route: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
 
 
 @app.route('/start_interview', methods=['POST'])
@@ -521,7 +522,7 @@ def submit_response():
             tech_question_count += 1
 
             if tech_question_count >= MAX_TECH_QUESTIONS:
-                final_message = f"Tech Interview Completed. Your score is {int(tech_score)} out of 10."
+                final_message = f"Tech Interview Completed. Your score is {int(hr_score)} out of 20. Check your profile for a detailed report."
                 conversation_history.append({"role": "interviewer", "text": final_message})
 
                 update_data = {
@@ -542,7 +543,7 @@ def submit_response():
                     "question": final_message,
                     "completed": True,
                     "score": int(tech_score),
-                    "max_score": 10
+                    "max_score": 20
                 }
             else:
                 next_question = generate_tech_question(response_text)
@@ -577,7 +578,7 @@ def submit_response():
                     "question": final_message,
                     "completed": True,
                     "score": int(hr_score),
-                    "max_score": 10
+                    "max_score": 20
                 }
             else:
                 next_question = generate_hr_question()
