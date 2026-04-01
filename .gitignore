@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+.env/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Audio / temp files (optional)
+*.mp3
+*.wav
+
+# Deployment / build
+dist/
+build/
+
+# Node (if any frontend later)
+node_modules/
+
+# Secrets
+*.key
