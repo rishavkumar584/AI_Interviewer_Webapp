@@ -1091,14 +1091,16 @@
 
       async function submitAnswer(type) {
         const suffix = type === "tech" ? "Tech" : "HR";
-        const statusEl = document.getElementById(`recordingStatus${suffix}`);
         const submitBtn = document.getElementById(`submitAnswer${suffix}`);
 
         if (type === "tech" && (!isRecordingTech || isSubmittingTech)) return;
         if (type === "hr" && (!isRecordingHR || isSubmittingHR)) return;
 
-        if (type === "tech") isSubmittingTech = true;
-        else isSubmittingHR = true;
+        if (type === "tech") {
+          isSubmittingTech = true;
+        } else {
+          isSubmittingHR = true;
+        }
 
         submitBtn.disabled = true;
         stopVoiceVisualizer(type);
@@ -1122,7 +1124,7 @@
         formData.append("type", type);
 
         const videoFeed = document.getElementById(`videoFeed${suffix}`);
-        if (videoFeed.srcObject) {
+        if (videoFeed && videoFeed.srcObject) {
           const canvas = document.createElement("canvas");
           canvas.width = videoFeed.videoWidth;
           canvas.height = videoFeed.videoHeight;
@@ -1140,16 +1142,16 @@
 
           const data = await response.json();
 
-                    if (data.error) {
-            document.getElementById(
-              `feedbackText${suffix}`
-            ).textContent = `Error: ${data.error}`;
+          if (data.error) {
+            document.getElementById(`feedbackText${suffix}`).textContent = `Error: ${data.error}`;
             hideVoiceUI(type);
           } else {
-            document.getElementById(`questionText${suffix}`).textContent =
-              data.question;
-            document.getElementById(`feedbackText${suffix}`).textContent =
-              data.feedback || "";
+            document.getElementById(`questionText${suffix}`).textContent = data.question;
+            document.getElementById(`feedbackText${suffix}`).textContent = data.feedback || "";
+
+            if (data.completed && data.score !== undefined && data.max_score !== undefined) {
+              document.getElementById(`feedbackText${suffix}`)
+            }
 
             if (type === "hr" && data.emotions) {
               const emotionsStr = Object.entries(data.emotions)
@@ -1162,19 +1164,27 @@
                 data.dominant_emotion || "None";
             }
 
-                        setVoiceStatus(type, "Speaking question...");
+            setVoiceStatus(type, "Speaking question...");
             await speakText(data.question);
 
-            await startRecording(type);
-            submitBtn.disabled = false;
+            if (data.completed) {
+              hideVoiceUI(type);
+              submitBtn.disabled = true;
+            } else {
+              await startRecording(type);
+              submitBtn.disabled = false;
+            }
           }
         } catch (error) {
           document.getElementById(`feedbackText${suffix}`).textContent =
             "Error submitting response.";
           hideVoiceUI(type);
         } finally {
-          if (type === "tech") isSubmittingTech = false;
-          else isSubmittingHR = false;
+          if (type === "tech") {
+            isSubmittingTech = false;
+          } else {
+            isSubmittingHR = false;
+          }
         }
       }
 
