@@ -430,10 +430,10 @@ def start_interview():
             question = generate_hr_question()
 
         conversation_history.append({"role": "interviewer", "text": question})
-        response = {"question": question}
+        result = {"question": question}
         
-        logger.info(f"Start interview response: {response}")
-        return jsonify(response)
+        logger.info(f"Start interview response: {result}")
+        return jsonify(result)
     
     except Exception as e:
         logger.error(f"Error in start_interview: {e}")
@@ -444,6 +444,7 @@ def submit_response():
     global conversation_history, current_interview_type, tech_question_count, tech_score, hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
     try:
         result = {}
+
         if not current_user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
@@ -453,33 +454,39 @@ def submit_response():
 
         if 'audio' not in request.files:
             return jsonify({"error": "No audio file provided"}), 400
+
         audio_file = request.files['audio']
         if audio_file.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
         temp_audio_path = "temp_audio.webm"
         audio_file.save(temp_audio_path)
+
         audio_path = convert_to_wav(temp_audio_path)
         if not audio_path:
             if os.path.exists(temp_audio_path):
                 os.remove(temp_audio_path)
             return jsonify({"error": "Failed to convert audio"}), 500
+
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
 
         recognizer = sr.Recognizer()
         with sr.AudioFile(audio_path) as source:
             audio = recognizer.record(source)
+
         try:
             response_text = recognizer.recognize_google(audio)
-        except:
+        except Exception:
             response_text = "Could not understand audio."
+
         logger.info(f"User answer (transcribed): {response_text}")
         conversation_history.append({"role": "user", "text": response_text})
 
         pitch, energy = analyze_speech(audio_path)
         image_data = request.form.get('image_data')
         emotions, dominant_emotion = None, None
+
         if image_data:
             frame = capture_frame(image_data)
             if frame is not None:
@@ -493,10 +500,11 @@ def submit_response():
             mark = gemini_mark_answer(response_text)
             tech_score += mark
             tech_question_count += 1
+
             if tech_question_count >= MAX_TECH_QUESTIONS:
-                
                 final_message = f"Tech Interview Completed. Your score is {tech_score} out of {MAX_TECH_QUESTIONS}."
                 conversation_history.append({"role": "interviewer", "text": final_message})
+
                 update_data = {
                     "tech_score": float(tech_score),
                     "last_updated": datetime.utcnow().isoformat()
@@ -504,49 +512,71 @@ def submit_response():
                 logger.info(f"Attempting to update tech_score to {tech_score} for user_id: {current_user_id}")
                 update_response = supabase.table("profiles").update(update_data).eq("user_id", current_user_id).execute()
                 logger.info(f"Tech update response: {update_response.data}")
+
                 profile_check = supabase.table("profiles").select("tech_score").eq("user_id", current_user_id).execute()
                 if profile_check.data and profile_check.data[0]["tech_score"] == float(tech_score):
                     logger.info(f"Verified tech_score updated to {tech_score} for user_id: {current_user_id}")
                 else:
                     logger.error(f"Failed to verify tech_score update for user_id: {current_user_id}. Current value: {profile_check.data}")
-                    response = {"question": final_message}
+
+                result = {
+                    "question": final_message,
+                    "completed": True,
+                    "score": float(tech_score),
+                    "max_score": MAX_TECH_QUESTIONS
+                }
             else:
                 next_question = generate_tech_question(response_text)
                 conversation_history.append({"role": "interviewer", "text": next_question})
-                response = {"question": next_question}
-        else: 
+                result = {
+                    "question": next_question,
+                    "completed": False
+                }
+
+        else:
             mark = gemini_mark_hr_answer(response_text)
             hr_score += mark
             hr_question_count += 1
             hr_emotions_history.append(emotions if emotions else {})
             hr_soft_skills_history.append(soft_skills)
+
             if hr_question_count >= MAX_HR_QUESTIONS:
                 final_message = f"HR Interview Completed. Your score is {hr_score} out of {MAX_HR_QUESTIONS}. Check your profile for a detailed report."
                 conversation_history.append({"role": "interviewer", "text": final_message})
+
                 update_data = {
                     "hr_score": float(hr_score),
-                    "hr_emotions": hr_emotions_history, 
-                    "hr_soft_skills": hr_soft_skills_history, 
+                    "hr_emotions": hr_emotions_history,
+                    "hr_soft_skills": hr_soft_skills_history,
                     "last_updated": datetime.utcnow().isoformat()
                 }
                 logger.info(f"Attempting to update HR profile for user_id: {current_user_id}")
                 update_response = supabase.table("profiles").update(update_data).eq("user_id", current_user_id).execute()
                 logger.info(f"HR update response: {update_response.data}")
-                response = {"question": final_message}
+
+                result = {
+                    "question": final_message,
+                    "completed": True,
+                    "score": float(hr_score),
+                    "max_score": MAX_HR_QUESTIONS
+                }
             else:
                 next_question = generate_hr_question()
                 conversation_history.append({"role": "interviewer", "text": next_question})
-                response = {
+                result = {
                     "question": next_question,
+                    "completed": False,
                     "emotions": emotions if emotions else {},
                     "dominant_emotion": dominant_emotion if dominant_emotion else "None"
                 }
 
-        logger.info(f"Submit response: {response}")
-        return jsonify(response)
+        logger.info(f"Submit response: {result}")
+        return jsonify(result)
+
     except Exception as e:
         logger.error(f"Error in submit_response: {e}")
         return jsonify({"error": str(e)}), 500
+
     finally:
         if os.path.exists("temp_audio.webm"):
             os.remove("temp_audio.webm")
