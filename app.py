@@ -1,7 +1,7 @@
 import os
 import uuid
 from google import genai
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 import speech_recognition as sr
 import numpy as np
 import librosa
@@ -36,6 +36,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "cyberverse-dev-secret-key")
 
 #GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
 #genai.configure(api_key=GOOGLE_API_KEY)
@@ -86,7 +87,6 @@ nlp = spacy.load("en_core_web_sm")
 conversation_history = []
 current_interview_type = None
 extracted_skills = []
-current_user_id = None
 
 tech_question_count = 0
 tech_score = 0
@@ -363,7 +363,6 @@ def index():
 
 @app.route('/sign_up', methods=['POST'])
 def sign_up_route():
-    global current_user_id
     try:
         email = request.form.get('email')
         password = request.form.get('password')
@@ -394,7 +393,7 @@ def sign_up_route():
         if not profile_response.data:
             return jsonify({"error": "Failed to create user profile"}), 500
 
-        current_user_id = user_id
+        session["user_id"] = user_id
         logger.info(f"User signed up with user_id: {user_id}")
         return jsonify({"success": True, "user_id": user_id})
     except Exception as e:
@@ -404,7 +403,6 @@ def sign_up_route():
 
 @app.route('/sign_in', methods=['POST'])
 def sign_in_route():
-    global current_user_id
     try:
         email = request.form.get('email')
         password = request.form.get('password')
@@ -416,7 +414,7 @@ def sign_in_route():
             return jsonify({"error": "Invalid email or password"}), 400
 
         user_id = user.data[0]["user_id"]
-        current_user_id = user_id
+        session["user_id"] = user_id
         logger.info(f"User signed in with user_id: {user_id}")
         return jsonify({"success": True, "user_id": user_id})
     except Exception as e:
@@ -424,12 +422,18 @@ def sign_in_route():
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route('/logout', methods=['POST'])
+def logout_route():
+    session.pop("user_id", None)
+    return jsonify({"success": True})
+
 
 @app.route('/start_interview', methods=['POST'])
 def start_interview():
     global conversation_history, current_interview_type, tech_question_count, tech_score, hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
     try:
-        if not current_user_id:
+        user_id = session.get("user_id")
+        if not user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
         interview_type = request.json.get('type')
@@ -465,7 +469,8 @@ def submit_response():
     try:
         result = {}
 
-        if not current_user_id:
+        user_id = session.get("user_id")
+        if not user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
         interview_type = request.form.get('type') or current_interview_type
@@ -529,15 +534,15 @@ def submit_response():
                     "tech_score": int(tech_score),
                     "last_updated": datetime.utcnow().isoformat()
                 }
-                logger.info(f"Attempting to update tech_score to {tech_score} for user_id: {current_user_id}")
-                update_response = supabase.table("profiles").update(update_data).eq("user_id", current_user_id).execute()
+                logger.info(f"Attempting to update tech_score to {tech_score} for user_id: {user_id}")
+                update_response = supabase.table("profiles").update(update_data).eq("user_id", user_id).execute()
                 logger.info(f"Tech update response: {update_response.data}")
 
-                profile_check = supabase.table("profiles").select("tech_score").eq("user_id", current_user_id).execute()
+                profile_check = supabase.table("profiles").select("tech_score").eq("user_id", user_id).execute()
                 if profile_check.data and profile_check.data[0]["tech_score"] == float(tech_score):
-                    logger.info(f"Verified tech_score updated to {tech_score} for user_id: {current_user_id}")
+                    logger.info(f"Verified tech_score updated to {tech_score} for user_id: {user_id}")
                 else:
-                    logger.error(f"Failed to verify tech_score update for user_id: {current_user_id}. Current value: {profile_check.data}")
+                    logger.error(f"Failed to verify tech_score update for user_id: {user_id}. Current value: {profile_check.data}")
 
                 result = {
                     "question": final_message,
@@ -570,8 +575,8 @@ def submit_response():
                     "hr_soft_skills": hr_soft_skills_history,
                     "last_updated": datetime.utcnow().isoformat()
                 }
-                logger.info(f"Attempting to update HR profile for user_id: {current_user_id}")
-                update_response = supabase.table("profiles").update(update_data).eq("user_id", current_user_id).execute()
+                logger.info(f"Attempting to update HR profile for user_id: {user_id}")
+                update_response = supabase.table("profiles").update(update_data).eq("user_id", user_id).execute()
                 logger.info(f"HR update response: {update_response.data}")
 
                 result = {
@@ -607,7 +612,8 @@ def submit_response():
 def upload_resume():
     global extracted_skills
     try:
-        if not current_user_id:
+        user_id = session.get("user_id")
+        if not user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
         if 'file' not in request.files:
@@ -632,15 +638,16 @@ def upload_resume():
 @app.route('/profile', methods=['GET'])
 def profile():
     try:
-        if not current_user_id:
+        user_id = session.get("user_id")
+        if not user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
-        profile_data = supabase.table("profiles").select("*").eq("user_id", current_user_id).execute()
+        profile_data = supabase.table("profiles").select("*").eq("user_id", user_id).execute()
         if not profile_data.data:
             return jsonify({"error": "Profile not found"}), 404
 
         profile = profile_data.data[0]
-        logger.info(f"Fetched tech profile for user_id {current_user_id}: tech_score={profile['tech_score']}")
+        logger.info(f"Fetched tech profile for user_id {user_id}: tech_score={profile['tech_score']}")
         return jsonify({
             "score": float(profile["tech_score"]), 
             "max_score": profile["tech_max_score"]
@@ -652,10 +659,11 @@ def profile():
 @app.route('/hr_profile', methods=['GET'])
 def hr_profile():
     try:
-        if not current_user_id:
+        user_id = session.get("user_id")
+        if not user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
-        profile_data = supabase.table("profiles").select("*").eq("user_id", current_user_id).execute()
+        profile_data = supabase.table("profiles").select("*").eq("user_id", user_id).execute()
         if not profile_data.data:
             return jsonify({"error": "Profile not found"}), 404
 

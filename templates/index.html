@@ -16,6 +16,15 @@
     <noscript
       ><link rel="stylesheet" href="/static/css/noscript.css"
     /></noscript>
+        <script>
+      (function () {
+        try {
+          if (sessionStorage.getItem("isLoggedIn") === "true") {
+            document.documentElement.classList.add("prelogged");
+          }
+        } catch (e) {}
+      })();
+    </script>
     <style>
       /* Background Styles */
       #bg {
@@ -236,6 +245,17 @@
         margin-top: 0.45rem;
         font-size: 0.95rem;
         color: rgba(255, 255, 255, 0.9);
+      }
+    
+      html.prelogged #landing-page {
+        display: none !important;
+      }
+
+      html.prelogged #header,
+      html.prelogged #main,
+      html.prelogged #footer {
+      display: block !important;
+
       }
 
     </style>
@@ -692,13 +712,18 @@
         });
         const result = await response.json();
         const feedback = document.getElementById("signInFeedback");
+        
         if (result.success) {
           feedback.textContent = "Sign-in successful! Redirecting...";
           feedback.style.color = "green";
           setTimeout(() => {
+            sessionStorage.setItem("isLoggedIn", "true");
+            sessionStorage.setItem("activeSection", "home");
+
             $("#wrapper").addClass("logged-in");
+            $("#main article").removeClass("active");
             $("#home").addClass("active");
-            // Reapply preloading class briefly for animation
+
             $("body").addClass("is-preload");
             setTimeout(() => {
               $("body").removeClass("is-preload");
@@ -711,13 +736,25 @@
       }
 
       $(document).ready(function () {
+        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+        const activeSection = sessionStorage.getItem("activeSection") || "home";
+
+        if (isLoggedIn === "true") {
+          $("#wrapper").addClass("logged-in");
+          $("#main article").removeClass("active");
+          $(`#${activeSection}`).addClass("active");
+          $(`#header nav ul li a[href="#${activeSection}"]`).addClass("active");
+        }
         $(".nav-link").on("click", function (e) {
           e.preventDefault();
           const target = $(this).attr("href").substring(1);
+
           $("#main article").removeClass("active");
           $(`#${target}`).addClass("active");
           $("#header nav ul li a").removeClass("active");
           $(this).addClass("active");
+
+          sessionStorage.setItem("activeSection", target);
           window.scrollTo(0, 0);
         });
 
@@ -971,6 +1008,18 @@
         try {
           submitBtn.disabled = true;
           hideVoiceUI(type);
+
+          if (type === "tech") {
+            document.getElementById("questionTextTech").textContent = "";
+            document.getElementById("feedbackTextTech").textContent = "";
+            document.getElementById("audioPlayerTech").src = "";
+          } else {
+            document.getElementById("questionTextHR").textContent = "";
+            document.getElementById("feedbackTextHR").textContent = "";
+            document.getElementById("audioPlayerHR").src = "";
+            document.getElementById("emotionsHR").textContent = "None detected";
+            document.getElementById("dominantEmotionHR").textContent = "None";
+          }
 
           await startCamera(type);
 
@@ -1275,26 +1324,13 @@
           }
         });
 
-      $(".nav-link, .close").on("click", function () {
+      $(".nav-link").on("click", function () {
         stopBrowserSpeech();
-        stopRecording("tech");
-        stopRecording("hr");
-        stopCamera("tech");
-        stopCamera("hr");
-        stopVoiceVisualizer("tech");
-        stopVoiceVisualizer("hr");
-        hideVoiceUI("tech");
-        hideVoiceUI("hr");
+        sessionStorage.setItem("activeSection", $(this).attr("href").substring(1));
+      });
 
-        document.getElementById("questionTextTech").textContent = "";
-        document.getElementById("questionTextHR").textContent = "";
-        document.getElementById("feedbackTextTech").textContent = "";
-        document.getElementById("feedbackTextHR").textContent = "";
-        document.getElementById("audioPlayerTech").src = "";
-        document.getElementById("audioPlayerHR").src = "";
-
-        document.getElementById("submitAnswerTech").disabled = true;
-        document.getElementById("submitAnswerHR").disabled = true;
+      $(".close").on("click", function () {
+        stopBrowserSpeech();
       });
 
     </script>
