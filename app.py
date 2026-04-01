@@ -15,7 +15,6 @@ import PyPDF2
 import docx
 import spacy
 import random
-from elevenlabs.client import ElevenLabs
 from datetime import datetime
 import json
 from dotenv import load_dotenv
@@ -43,11 +42,6 @@ app = Flask(__name__, static_url_path='/static', static_folder='static')
 #genai_client = genai.Client(api_key=GOOGLE_API_KEY)
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-tts_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-#client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-
-#print("ElevenLabs Key:", ELEVENLABS_API_KEY)
 
 '''
 def get_available_model():
@@ -229,28 +223,6 @@ def generate_hr_question():
         hr_question_index = (hr_question_index + 1) % len(hr_questions)
         return question
 
-
-def text_to_speech(text, filename="question.mp3"):
-    try:
-        audio = tts_client.text_to_speech.convert(
-            voice_id="JBFqnCBsd6RMkjVDRZzb",
-            model_id="eleven_multilingual_v2",
-            text=text
-        )
-
-        audio_path = os.path.join("static", filename)
-        os.makedirs("static", exist_ok=True)
-
-        with open(audio_path, "wb") as f:
-            for chunk in audio:
-                if chunk:
-                    f.write(chunk)
-
-        logger.info(f"Audio file saved at: {audio_path}")
-        return filename
-    except Exception as e:
-        logger.error(f"Error in text-to-speech: {e}")
-        return None
 
 def analyze_speech(audio_file):
     try:
@@ -457,14 +429,12 @@ def start_interview():
             hr_soft_skills_history = []
             question = generate_hr_question()
 
-        audio_file = text_to_speech(question)
-        if not audio_file:
-            logger.warning("Audio generation failed, proceeding without audio")
-
         conversation_history.append({"role": "interviewer", "text": question})
-        response = {"question": question, "audio": audio_file or None}
+        response = {"question": question}
+        
         logger.info(f"Start interview response: {response}")
         return jsonify(response)
+    
     except Exception as e:
         logger.error(f"Error in start_interview: {e}")
         return jsonify({"error": str(e)}), 500
@@ -473,6 +443,7 @@ def start_interview():
 def submit_response():
     global conversation_history, current_interview_type, tech_question_count, tech_score, hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
     try:
+        result = {}
         if not current_user_id:
             return jsonify({"error": "User not authenticated"}), 401
 
@@ -523,8 +494,8 @@ def submit_response():
             tech_score += mark
             tech_question_count += 1
             if tech_question_count >= MAX_TECH_QUESTIONS:
+                
                 final_message = f"Tech Interview Completed. Your score is {tech_score} out of {MAX_TECH_QUESTIONS}."
-                audio_file = text_to_speech(final_message)
                 conversation_history.append({"role": "interviewer", "text": final_message})
                 update_data = {
                     "tech_score": float(tech_score),
@@ -538,12 +509,11 @@ def submit_response():
                     logger.info(f"Verified tech_score updated to {tech_score} for user_id: {current_user_id}")
                 else:
                     logger.error(f"Failed to verify tech_score update for user_id: {current_user_id}. Current value: {profile_check.data}")
-                response = {"question": final_message, "audio": audio_file or None}
+                    response = {"question": final_message}
             else:
                 next_question = generate_tech_question(response_text)
-                audio_file = text_to_speech(next_question)
                 conversation_history.append({"role": "interviewer", "text": next_question})
-                response = {"question": next_question, "audio": audio_file or None}
+                response = {"question": next_question}
         else: 
             mark = gemini_mark_hr_answer(response_text)
             hr_score += mark
@@ -552,7 +522,6 @@ def submit_response():
             hr_soft_skills_history.append(soft_skills)
             if hr_question_count >= MAX_HR_QUESTIONS:
                 final_message = f"HR Interview Completed. Your score is {hr_score} out of {MAX_HR_QUESTIONS}. Check your profile for a detailed report."
-                audio_file = text_to_speech(final_message)
                 conversation_history.append({"role": "interviewer", "text": final_message})
                 update_data = {
                     "hr_score": float(hr_score),
@@ -563,14 +532,12 @@ def submit_response():
                 logger.info(f"Attempting to update HR profile for user_id: {current_user_id}")
                 update_response = supabase.table("profiles").update(update_data).eq("user_id", current_user_id).execute()
                 logger.info(f"HR update response: {update_response.data}")
-                response = {"question": final_message, "audio": audio_file or None}
+                response = {"question": final_message}
             else:
                 next_question = generate_hr_question()
-                audio_file = text_to_speech(next_question)
                 conversation_history.append({"role": "interviewer", "text": next_question})
                 response = {
                     "question": next_question,
-                    "audio": audio_file or None,
                     "emotions": emotions if emotions else {},
                     "dominant_emotion": dominant_emotion if dominant_emotion else "None"
                 }

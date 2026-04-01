@@ -562,6 +562,58 @@
         else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
         else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
       }
+
+            let currentUtterance = null;
+
+      function stopBrowserSpeech() {
+        window.speechSynthesis.cancel();
+        currentUtterance = null;
+      }
+
+      function speakText(text) {
+        return new Promise((resolve) => {
+          if (!("speechSynthesis" in window)) {
+            resolve();
+            return;
+          }
+
+          stopBrowserSpeech();
+
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1;
+          utterance.pitch = 1;
+          utterance.volume = 1;
+
+          const voices = window.speechSynthesis.getVoices();
+          const preferredVoice =
+            voices.find((voice) =>
+              voice.lang && voice.lang.toLowerCase().startsWith("en")
+            ) || voices[0];
+
+          if (preferredVoice) {
+            utterance.voice = preferredVoice;
+          }
+
+          utterance.onend = () => {
+            currentUtterance = null;
+            resolve();
+          };
+
+          utterance.onerror = () => {
+            currentUtterance = null;
+            resolve();
+          };
+
+          currentUtterance = utterance;
+          window.speechSynthesis.speak(utterance);
+        });
+      }
+
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+
+
       function exitFullScreen() {
         if (document.exitFullscreen) document.exitFullscreen();
         else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
@@ -762,13 +814,8 @@
           } else {
             document.getElementById(`questionText${suffix}`).textContent =
               data.question;
-            if (data.audio) {
-              document.getElementById(
-                `audioPlayer${suffix}`
-              ).src = `/static/${data.audio}`;
-              document.getElementById(`audioPlayer${suffix}`).play();
-            }
             document.getElementById(`feedbackText${suffix}`).textContent = "";
+            await speakText(data.question);
           }
         } catch (error) {
           document.getElementById(`feedbackText${suffix}`).textContent =
@@ -832,14 +879,9 @@
               } else {
                 document.getElementById(`questionText${suffix}`).textContent =
                   data.question;
-                if (data.audio) {
-                  document.getElementById(
-                    `audioPlayer${suffix}`
-                  ).src = `/static/${data.audio}`;
-                  document.getElementById(`audioPlayer${suffix}`).play();
-                }
                 document.getElementById(`feedbackText${suffix}`).textContent =
                   data.feedback || "";
+                await speakText(data.question);
                 if (type === "hr" && data.emotions) {
                   const emotionsStr = Object.entries(data.emotions)
                     .map(
@@ -971,6 +1013,7 @@
         });
 
       $(".nav-link, .close").on("click", function () {
+        stopBrowserSpeech();
         stopRecording("tech");
         stopRecording("hr");
         stopCamera("tech");
