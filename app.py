@@ -423,6 +423,7 @@ def sign_in_route():
         logger.error(f"Error in sign-in route: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+
 @app.route('/start_interview', methods=['POST'])
 def start_interview():
     global conversation_history, current_interview_type, tech_question_count, tech_score, hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history

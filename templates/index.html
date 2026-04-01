@@ -453,7 +453,7 @@
                       margin-top: 1rem;
                       padding: 1rem;
                       border: 1px solid #ccc;
-                      background: #f9f9f9;
+                      background: #000000;
                     "
                   >
                     <p>
@@ -555,7 +555,7 @@
                   Load Tech Profile
                 </button>
                 <h3>HR Interview</h3>
-                <p id="hrProfileScore">Score: 0/8</p>
+                <p id="hrProfileScore">Score: 0/10</p>
                 <p id="hrProfileDetails"></p>
                 <button id="loadHRProfile" class="button">
                   Load HR Profile
@@ -987,6 +987,7 @@
               `feedbackText${suffix}`
             ).textContent = `Error: ${data.error}`;
             hideVoiceUI(type);
+            stopCamera(type);
             return;
           }
 
@@ -1169,6 +1170,7 @@
 
             if (data.completed) {
               hideVoiceUI(type);
+              stopCamera(type);
               submitBtn.disabled = true;
             } else {
               await startRecording(type);
