@@ -336,6 +336,7 @@
             <li><a href="#resume" class="nav-link">Upload Resume</a></li>
             <li><a href="#about" class="nav-link">About</a></li>
             <li><a href="#profile" class="nav-link">Profile</a></li>
+            <li><a href="#" id="logoutBtn">Logout</a></li>
           </ul>
         </nav>
       </header>
@@ -679,6 +680,37 @@
         document.getElementById("audioPlayerHR").pause();
       }
 
+            async function logoutUser() {
+        try {
+          await fetch("/logout", {
+            method: "POST",
+          });
+
+          // Clear frontend session
+          sessionStorage.clear();
+
+          // Stop everything
+          stopBrowserSpeech();
+          stopRecording("tech");
+          stopRecording("hr");
+          stopCamera("tech");
+          stopCamera("hr");
+          stopVoiceVisualizer("tech");
+          stopVoiceVisualizer("hr");
+          hideVoiceUI("tech");
+          hideVoiceUI("hr");
+
+          // Reset UI
+          $("#wrapper").removeClass("logged-in");
+          $("#main article").removeClass("active");
+
+          // Show login page again
+          window.location.href = "/";
+        } catch (error) {
+          alert("Error logging out. Try again.");
+        }
+      }
+
       async function signUp() {
         const email = document.getElementById("signUpEmail").value;
         const password = document.getElementById("signUpPassword").value;
@@ -735,9 +767,17 @@
         }
       }
 
+
       $(document).ready(function () {
         const isLoggedIn = sessionStorage.getItem("isLoggedIn");
         const activeSection = sessionStorage.getItem("activeSection") || "home";
+        $("#logoutBtn").on("click", function (e) {
+          e.preventDefault();
+          const confirmLogout = confirm("Are you sure you want to logout?");
+          if (confirmLogout) {
+            logoutUser();
+          }
+        });
 
         if (isLoggedIn === "true") {
           $("#wrapper").addClass("logged-in");
@@ -1198,10 +1238,6 @@
           } else {
             document.getElementById(`questionText${suffix}`).textContent = data.question;
             document.getElementById(`feedbackText${suffix}`).textContent = data.feedback || "";
-
-            if (data.completed && data.score !== undefined && data.max_score !== undefined) {
-              document.getElementById(`feedbackText${suffix}`)
-            }
 
             if (type === "hr" && data.emotions) {
               const emotionsStr = Object.entries(data.emotions)
