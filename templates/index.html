@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>CyberVerse AI Interview | Dimension</title>
+    <title>Interv AI</title>
     <meta charset="utf-8" />
     <meta
       name="viewport"
@@ -119,82 +119,107 @@
         text-align: center;
       }
 
-      /* Landing Page Styles (Unchanged) */
-      #landing-page {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        padding: 2rem;
-      }
-      #landing-page .content {
-        background: rgba(255, 255, 255, 0.95);
-        padding: 2rem;
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        width: 100%;
-        max-width: 400px;
-        text-align: center;
-        color: #333;
-      }
-      #landing-page h1 {
-        font-size: 2rem;
-        margin-bottom: 1rem;
-        color: #1a1a1a;
-      }
-      #landing-page h2 {
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
-        color: #1a1a1a;
-      }
-      #landing-page p {
-        font-size: 1rem;
-        margin-bottom: 1.5rem;
-        color: #555;
-      }
-      #landing-page .form-container {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-      #landing-page input {
-        padding: 0.75rem;
-        font-size: 1rem;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        outline: none;
-        color: #333;
-        background: #fff;
-      }
-      #landing-page input:focus {
-        border-color: #007bff;
-        box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-      }
-      #landing-page button {
-        padding: 0.75rem;
-        font-size: 1rem;
-        background: #007bff;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background 0.3s;
-      }
-      #landing-page button:hover {
-        background: #0056b3;
-      }
-      #landing-page #signUpFeedback,
-      #landing-page #signInFeedback {
-        margin-top: 1rem;
-        font-size: 0.9rem;
-      }
-      #landing-page a {
-        color: #007bff;
-        text-decoration: none;
-      }
-      #landing-page a:hover {
-        text-decoration: underline;
-      }
+      
+      /* Landing Page Styles */
+#landing-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+#landing-page .content {
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2rem;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+#landing-page h1 {
+  margin-bottom: 1rem;
+  color: #ffffff;
+  font-size: 3rem;
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+#landing-page h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #ffffff;
+}
+
+#landing-page p {
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+  color: #ffffff;
+}
+
+#landing-page .form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+#landing-page input {
+  padding: 0.75rem;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  outline: none;
+}
+
+#landing-page input::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+#landing-page input:focus {
+  border-color: #00c6ff;
+  box-shadow: 0 0 5px rgba(0, 198, 255, 0.5);
+}
+
+#landing-page button {
+  padding: 0.75rem;
+  font-size: 1rem;
+  background: #00c6ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background 0.3s;
+}
+
+#landing-page button:hover {
+  background: #0056b3;
+}
+
+#landing-page #signUpFeedback,
+#landing-page #signInFeedback {
+  margin-top: 1rem;
+  color: #89f2cf;
+  font-size: 1.2rem;
+}
+
+#landing-page a {
+  color: #4fc3ff;
+  text-decoration: none;
+}
+
+#landing-page a:hover {
+  text-decoration: underline;
+}
 
       /* Visibility Control */
       #wrapper.logged-in #landing-page {
@@ -268,7 +293,7 @@
       <!-- Landing Page (Sign Up/Sign In) -->
       <div id="landing-page">
         <div class="content">
-          <h1>CyberVerse AI Interview</h1>
+          <h1>Interv AI</h1>
           <div id="landing-main">
             <!-- Sign-Up Section -->
             <article id="signup" class="active">
@@ -326,8 +351,8 @@
         <div class="logo"><span class="icon fa-gem"></span></div>
         <div class="content">
           <div class="inner">
-            <h1><a href="#">CyberVerse AI Interview</a></h1>
-            <p>Advanced AI-powered interview preparation system</p>
+            <h1><a href="#">INTERV AI</a></h1>
+            <p>ADVANCED AI-POWERED INTERVIEW PREPARATION AND EVALUATION SYSTEM</p>
           </div>
         </div>
         <nav>
@@ -348,16 +373,23 @@
         <article id="home">
           <div class="content">
             <header>
-              <h2>Welcome to CyberVerse AI</h2>
+              <h2>WELCOME TO INTERV AI</h2>
               <p>Prepare for your future with our advanced interview system.</p>
             </header>
             <div class="inner">
               <div class="box">
                 <p>
-                  The CyberVerse AI Interview System leverages cutting-edge
-                  technology to help you prepare for both technical and HR
-                  interviews. Experience a futuristic interface with real-time
-                  feedback and audio responses.
+                    The Interv AI System leverages cutting-edge artificial intelligence to help users effectively 
+                    prepare for both technical and HR interviews. The platform provides a realistic interview 
+                    environment where candidates can practice answering questions in real time using voice-based 
+                    or text-based interactions.
+                </p>
+                <p>
+                    It features a modern, user-friendly interface combined with intelligent backend processing 
+                    to deliver instant feedback on responses, including content relevance, confidence, and 
+                    communication quality. The system is designed to simulate real interview scenarios, enabling 
+                    users to improve their problem-solving skills, articulation, and overall interview 
+                    performance.
                 </p>
                 <ul class="actions">
                   <li>
@@ -529,16 +561,15 @@
         <article id="about">
           <div class="content">
             <header>
-              <h2>About CyberVerse AI</h2>
+              <h2>About INTERV AI</h2>
               <p>Learn more about our mission and technology.</p>
             </header>
             <div class="inner">
               <div class="box">
                 <p>
-                  CyberVerse AI is powered by xAI, dedicated to advancing
-                  human-AI collaboration. Our interview system uses
-                  state-of-the-art AI to simulate real-world interviews, helping
-                  candidates improve their skills with audio analysis.
+                  Interv AI is a web-based AI platform for real-time interview
+                  practice and feedback, dedicated to advancing human-AI collaboration.
+                  Our interview system uses state-of-the-art AI to simulate real-world interviews, helping candidates improve their skills with audio analysis.
                 </p>
                 <ul class="icons">
                   <li>
@@ -577,6 +608,7 @@
                 <button id="loadTechProfile" class="button">
                   Load Tech Profile
                 </button>
+                <hr>
                 <h3>HR Interview</h3>
                 <p id="hrProfileScore">Score: 0/20</p>
                 <p id="hrProfileDetails"></p>
@@ -591,7 +623,7 @@
       </div>
 
       <footer id="footer">
-        <p class="copyright">© 2025 CyberVerse AI.</p>
+        <p class="copyright">© 2026 Interv AI.</p>
       </footer>
     </div>
 
@@ -812,19 +844,43 @@
         }, 100);
 
         $("#loadTechProfile").on("click", function () {
-          $.ajax({
-            url: "/profile",
-            method: "GET",
-            success: function (data) {
-              $("#techProfileScore").text(
-                `Score: ${data.score}/${data.max_score}`
-              );
-            },
-            error: function (err) {
-              $("#techProfileScore").text("Error loading tech profile.");
-            },
-          });
-        });
+  $.ajax({
+    url: "/profile",
+    method: "GET",
+    success: function (data) {
+
+          $("#techProfileScore").html(`
+            <div class="profile-report-card">
+              <h3>Technical Interview Review</h3>
+
+              <p><strong>Score:</strong> ${data.score}/${data.max_score}</p>
+              <p><strong>Topic Coverage:</strong> ${data.topic_coverage}</p>
+
+              <p><strong>Strengths:</strong></p>
+              <ul>
+                ${(data.strengths || []).map(item => `<li>${item}</li>`).join("")}
+              </ul>
+
+              <p><strong>Areas to Improve:</strong></p>
+              <ul>
+                ${(data.improvements || []).map(item => `<li>${item}</li>`).join("")}
+              </ul>
+
+              <p><strong>Question-wise Feedback:</strong></p>
+              <ul>
+                ${(data.question_feedback || []).map(item => `<li>${item}</li>`).join("")}
+              </ul>
+
+              <p><strong>Overall Summary:</strong> ${data.overall_summary}</p>
+            </div>
+          `);
+        },
+        error: function () {
+          $("#techProfileScore").text("Error loading tech profile.");
+        },
+      });
+    });
+        
 
         $("#loadHRProfile").on("click", function () {
           $.ajax({

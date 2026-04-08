@@ -26,10 +26,6 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-#print(os.getenv("SUPABASE_URL"))
-#print(os.getenv("SUPABASE_KEY"))
-
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 logging.basicConfig(level=logging.INFO)
@@ -38,48 +34,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "cyberverse-dev-secret-key")
 
-#GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
-#genai.configure(api_key=GOOGLE_API_KEY)
-#genai_client = genai.Client(api_key=GOOGLE_API_KEY)
-
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
-'''
-def get_available_model():
-    try:
-        models = genai.list_models()
-        for model in models:
-            if 'generateContent' in model.supported_generation_methods:
-                logger.info(f"Available model: {model.name}")
-                if 'gemini-1.5-flash' in model.name:
-                    logger.info(f"Using model: {model.name}")
-                    return genai.GenerativeModel(model.name)
-        logger.info("No preferred model found, using gemini-1.5-flash")
-        return genai.GenerativeModel('gemini-1.5-flash')
-    except Exception as e:
-        logger.error(f"Model selection failed: {e}")
-        return genai.GenerativeModel('gemini-1.5-flash')
-'''
-
-def generate_with_groq(prompt):
-    try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=200
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"Groq error: {e}")
-        return "Can you explain the concept of OOP in Python?"
-
-
-#model = get_available_model()
-
-
 
 analyzer = SentimentIntensityAnalyzer()
 nlp = spacy.load("en_core_web_sm")
@@ -91,6 +46,10 @@ extracted_skills = []
 tech_question_count = 0
 tech_score = 0
 MAX_TECH_QUESTIONS = 2
+tech_questions_history = []
+tech_answers_history = []
+tech_feedback_history = []
+tech_marks_history = []
 
 hr_question_count = 0
 hr_score = 0
@@ -110,7 +69,23 @@ hr_questions = [
 ]
 
 hr_question_index = 0
-#print(generate_with_groq("Say hello"))
+
+
+def generate_with_groq(prompt):
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=300
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Groq error: {e}")
+        return "Can you explain the concept of OOP in Python?"
+
 
 def gemini_mark_hr_answer(answer_text):
     try:
@@ -133,26 +108,157 @@ def gemini_mark_hr_answer(answer_text):
         logger.error(f"Error in marking HR answer: {e}")
         return 4
 
+
 def gemini_mark_answer(answer_text):
     try:
-            prompt = (
-                f"Mark the following technical interview answer on an INTEGER scale from 0 to 10 "
-                f"based on accuracy, relevance, clarity, and completeness.\n\n"
-                f"Answer: '{answer_text}'\n\n"
-                f"Return only one integer: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10."
-            )
-            response_text = generate_with_groq(prompt)
-            mark = int(response_text.strip().split()[0])
+        prompt = (
+            f"Mark the following technical interview answer on an INTEGER scale from 0 to 10 "
+            f"based on accuracy, relevance, clarity, and completeness.\n\n"
+            f"Answer: '{answer_text}'\n\n"
+            f"Return only one integer: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10."
+        )
+        response_text = generate_with_groq(prompt)
+        mark = int(response_text.strip().split()[0])
 
-            if mark < 0:
-                mark = 0
-            elif mark > 10:
-                mark = 10
+        if mark < 0:
+            mark = 0
+        elif mark > 10:
+            mark = 10
 
-            return mark
+        return mark
     except Exception as e:
         logger.error(f"Error in marking technical answer: {e}")
         return 4
+
+
+def generate_tech_answer_feedback(question, answer_text, mark):
+    try:
+        prompt = (
+            f"You are a technical interviewer.\n"
+            f"Question: {question}\n"
+            f"Candidate Answer: {answer_text}\n"
+            f"Score Given: {mark}/10\n\n"
+            f"Write short feedback in 2-3 lines in simple English.\n"
+            f"Include:\n"
+            f"1. what was good\n"
+            f"2. what was missing or weak\n"
+            f"3. one improvement suggestion\n"
+            f"Keep it concise and interview-style."
+        )
+        feedback = generate_with_groq(prompt)
+        return feedback.strip()
+    except Exception as e:
+        logger.error(f"Error generating tech answer feedback: {e}")
+        return "Your answer had some relevant points, but it needed more clarity, technical accuracy, and completeness."
+
+
+def generate_tech_overall_summary(questions, answers, feedbacks, score, max_score):
+    try:
+        combined_qna = []
+        for i in range(min(len(questions), len(answers), len(feedbacks))):
+            combined_qna.append(
+                f"Q{i+1}: {questions[i]}\n"
+                f"A{i+1}: {answers[i]}\n"
+                f"Feedback{i+1}: {feedbacks[i]}"
+            )
+
+        combined_text = "\n\n".join(combined_qna)
+
+        prompt = (
+            f"You are generating a final technical interview review.\n"
+            f"Final Score: {score}/{max_score}\n\n"
+            f"Interview Data:\n{combined_text}\n\n"
+            f"Write a short overall summary in simple English for a student.\n"
+            f"Cover:\n"
+            f"- overall performance\n"
+            f"- strengths\n"
+            f"- weak areas\n"
+            f"- what to improve next\n"
+            f"Return only one paragraph."
+        )
+        summary = generate_with_groq(prompt)
+        return summary.strip()
+    except Exception as e:
+        logger.error(f"Error generating tech overall summary: {e}")
+        if score >= max_score * 0.8:
+            return "You performed well in the technical interview and showed good understanding of the main concepts. Keep improving answer depth and explanation style to make your responses even stronger."
+        elif score >= max_score * 0.5:
+            return "You showed a basic understanding of technical concepts, but your answers need more clarity, detail, and correctness in some places. Practice explaining concepts step by step with examples."
+        else:
+            return "Your technical interview performance shows that you need more preparation in core concepts and clearer explanation. Focus on fundamentals, revise key topics, and practice answering technical questions aloud."
+
+
+def build_tech_profile_report(profile):
+    tech_score_value = float(profile.get("tech_score", 0))
+    tech_max_score_value = float(profile.get("tech_max_score", 20))
+
+    tech_questions = profile.get("tech_questions_history", [])
+    if isinstance(tech_questions, str):
+        tech_questions = json.loads(tech_questions) if tech_questions else []
+
+    tech_answers = profile.get("tech_answers_history", [])
+    if isinstance(tech_answers, str):
+        tech_answers = json.loads(tech_answers) if tech_answers else []
+
+    tech_feedback = profile.get("tech_feedback_history", [])
+    if isinstance(tech_feedback, str):
+        tech_feedback = json.loads(tech_feedback) if tech_feedback else []
+
+    tech_marks = profile.get("tech_marks_history", [])
+    if isinstance(tech_marks, str):
+        tech_marks = json.loads(tech_marks) if tech_marks else []
+
+    strengths = []
+    improvements = []
+
+    if tech_score_value >= tech_max_score_value * 0.8:
+        strengths.append("You showed a strong understanding of the technical topics asked.")
+        strengths.append("Your overall technical performance was good and above average.")
+    elif tech_score_value >= tech_max_score_value * 0.5:
+        strengths.append("You showed basic technical understanding in several areas.")
+        improvements.append("Try to make your answers more detailed and technically precise.")
+    else:
+        improvements.append("You need stronger preparation in technical fundamentals.")
+        improvements.append("Practice explaining concepts clearly with correct terminology.")
+
+    if tech_marks:
+        high_marks = [m for m in tech_marks if m >= 7]
+        low_marks = [m for m in tech_marks if m <= 4]
+
+        if high_marks:
+            strengths.append("Some of your answers were relevant and showed good conceptual knowledge.")
+        if low_marks:
+            improvements.append("A few answers lacked completeness or correctness and need more revision.")
+
+    if not strengths:
+        strengths.append("You attempted the interview sincerely and showed willingness to answer technical questions.")
+
+    if not improvements:
+        improvements.append("Keep practicing more structured and example-based technical answers.")
+
+    topic_coverage = (
+        f"You answered {len(tech_answers)} technical question(s) in this interview. "
+        f"Your final score was {tech_score_value} out of {tech_max_score_value}."
+    )
+
+    overall_summary = generate_tech_overall_summary(
+        tech_questions,
+        tech_answers,
+        tech_feedback,
+        tech_score_value,
+        tech_max_score_value
+    )
+
+    return {
+        "score": tech_score_value,
+        "max_score": tech_max_score_value,
+        "topic_coverage": topic_coverage,
+        "strengths": strengths,
+        "improvements": improvements,
+        "question_feedback": tech_feedback if tech_feedback else ["No detailed technical feedback available yet."],
+        "overall_summary": overall_summary
+    }
+
 
 def detect_emotion(frame):
     try:
@@ -168,6 +274,7 @@ def detect_emotion(frame):
     except Exception as e:
         logger.error(f"Error in emotion detection: {e}")
         return {}, None
+
 
 def capture_frame(image_data):
     try:
@@ -191,45 +298,54 @@ def capture_frame(image_data):
 
 def generate_tech_question(response=None):
     global extracted_skills, conversation_history, tech_question_count
-    # if not model:
-    #     logger.warning("Model not initialized, using fallback question")
-    #return "What is the difference between a list and a tuple in Python?"
     try:
         context = "\n".join([f"{entry['role']}: {entry['text']}" for entry in conversation_history])
+
         if extracted_skills and len(extracted_skills) > 0:
             skill = random.choice(extracted_skills)
             if not response:
-                prompt = (f"Given the conversation context:\n{context}\n"
-                          f"Ask a basic technical interview question about {skill} that requires more than a one-word answer. but dont ask questions that are too big aont ask any question that reauires me to submit the code snippet etc..")
+                prompt = (
+                    f"Given the conversation context:\n{context}\n"
+                    f"Ask a basic technical interview question about {skill} that requires more than a one-word answer. "
+                    f"But don't ask questions that are too big and don't ask any question that requires code submission."
+                )
             else:
-                prompt = (f"Given the conversation context:\n{context}\n"
-                          f"Based on the response: '{response}', ask a follow-up technical question about {skill} that builds on the previous answer. but not too big")
+                prompt = (
+                    f"Given the conversation context:\n{context}\n"
+                    f"Based on the response: '{response}', ask a follow-up technical question about {skill} that builds on the previous answer, but not too big."
+                )
         else:
             if not response:
-                prompt = (f"Given the conversation context:\n{context}\n"
-                          "Ask a basic technical interview question about Python that requires more than a one-word answer.")
+                prompt = (
+                    f"Given the conversation context:\n{context}\n"
+                    "Ask a basic technical interview question about Python that requires more than a one-word answer."
+                )
             else:
-                prompt = (f"Given the conversation context:\n{context}\n"
-                          "Based on the response: '{response}', ask a follow-up technical question about Python that builds on the previous answer.")
-        #genai.Client().models.generate_content()
+                prompt = (
+                    f"Given the conversation context:\n{context}\n"
+                    f"Based on the response: '{response}', ask a follow-up technical question about Python that builds on the previous answer."
+                )
+
         response_text = generate_with_groq(prompt)
         question = response_text.strip()
         logger.info(f"Generated tech question: {question}")
         return question
     except Exception as e:
-        logger.error(f"Error with Gemini API: {e}")
+        logger.error(f"Error generating tech question: {e}")
         return "What is the difference between a list and a tuple in Python?"
+
 
 def generate_hr_question():
     global hr_question_index, hr_questions, conversation_history
     context = "\n".join([f"{entry['role']}: {entry['text']}" for entry in conversation_history])
     try:
         if len(conversation_history) > 1:
-            prompt = (f"Given the conversation context:\n{context}\n"
-                      "Ask a follow-up HR interview question that builds on the previous response. Return only the question.")
-            #response_obj = model.generate_content(prompt)
+            prompt = (
+                f"Given the conversation context:\n{context}\n"
+                "Ask a follow-up HR interview question that builds on the previous response. Return only the question."
+            )
             response_text = generate_with_groq(prompt)
-            question = response_text.strip() #response_obj.text.strip()
+            question = response_text.strip()
         else:
             question = hr_questions[hr_question_index]
             hr_question_index = (hr_question_index + 1) % len(hr_questions)
@@ -244,14 +360,15 @@ def generate_hr_question():
 
 def analyze_speech(audio_file):
     try:
-        y, sr = librosa.load(audio_file)
-        pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
+        y, sr_value = librosa.load(audio_file)
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr_value)
         pitch_mean = np.mean(pitches[pitches > 0]) if np.any(pitches > 0) else 0
         energy = np.mean(librosa.feature.rms(y=y))
         return pitch_mean, energy
     except Exception as e:
         logger.error(f"Error in speech analysis: {e}")
         return 0, 0
+
 
 def analyze_soft_skills(text, pitch, energy, emotions=None):
     try:
@@ -269,7 +386,14 @@ def analyze_soft_skills(text, pitch, energy, emotions=None):
         }
     except Exception as e:
         logger.error(f"Error in soft skills analysis: {e}")
-        return {"confidence": "Unknown", "enthusiasm": "Unknown", "positivity": 0.0, "emotion_feedback": "Unknown", "emotions": {}}
+        return {
+            "confidence": "Unknown",
+            "enthusiasm": "Unknown",
+            "positivity": 0.0,
+            "emotion_feedback": "Unknown",
+            "emotions": {}
+        }
+
 
 def convert_to_wav(input_file, output_file="response.wav"):
     try:
@@ -280,6 +404,7 @@ def convert_to_wav(input_file, output_file="response.wav"):
     except Exception as e:
         logger.error(f"Error converting audio: {e}")
         return None
+
 
 def extract_text(file):
     try:
@@ -301,6 +426,7 @@ def extract_text(file):
     except Exception as e:
         logger.error(f"Error extracting text: {e}")
         return ""
+
 
 def extract_skills(text):
     global extracted_skills
@@ -340,6 +466,7 @@ def extract_skills(text):
         ]
         doc = nlp(text.lower())
         extracted_skills = set()
+
         for i in range(len(doc)):
             for skill in skills_list:
                 skill_tokens = skill.split()
@@ -350,6 +477,7 @@ def extract_skills(text):
                     window = doc[i:i + len(skill_tokens)]
                     if all(t.text == skill_tokens[j] for j, t in enumerate(window)) and len(window) == len(skill_tokens):
                         extracted_skills.add(skill)
+
         extracted_skills = list(extracted_skills)
         logger.info(f"Extracted skills: {extracted_skills} (Count: {len(extracted_skills)})")
         return extracted_skills
@@ -357,24 +485,32 @@ def extract_skills(text):
         logger.error(f"Error extracting skills: {e}")
         return []
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/sign_up', methods=['POST'])
 def sign_up_route():
     try:
         email = request.form.get('email')
         password = request.form.get('password')
+
         if not email or not password:
             return jsonify({"error": "Missing email or password"}), 400
 
         user_id = str(uuid.uuid4())
+
         existing_user = supabase.table("users").select("email").eq("email", email).execute()
         if existing_user.data:
             return jsonify({"error": "Email already exists"}), 400
 
-        user_data = {"user_id": user_id, "email": email, "created_at": datetime.utcnow().isoformat()}
+        user_data = {
+            "user_id": user_id,
+            "email": email,
+            "created_at": datetime.utcnow().isoformat()
+        }
         user_response = supabase.table("users").insert(user_data).execute()
         if not user_response.data:
             return jsonify({"error": "Failed to insert user into database"}), 500
@@ -383,10 +519,14 @@ def sign_up_route():
             "user_id": user_id,
             "tech_score": 0,
             "tech_max_score": 20,
+            "tech_questions_history": [],
+            "tech_answers_history": [],
+            "tech_feedback_history": [],
+            "tech_marks_history": [],
             "hr_score": 0,
             "hr_max_score": 20,
-            "hr_emotions": [],  
-            "hr_soft_skills": [],  
+            "hr_emotions": [],
+            "hr_soft_skills": [],
             "last_updated": datetime.utcnow().isoformat()
         }
         profile_response = supabase.table("profiles").insert(profile_data).execute()
@@ -398,14 +538,15 @@ def sign_up_route():
         return jsonify({"success": True, "user_id": user_id})
     except Exception as e:
         logger.error(f"Error in sign-up route: {e}")
-        #return jsonify({"error": "Internal server error"}), 500
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/sign_in', methods=['POST'])
 def sign_in_route():
     try:
         email = request.form.get('email')
         password = request.form.get('password')
+
         if not email or not password:
             return jsonify({"error": "Missing email or password"}), 400
 
@@ -430,7 +571,10 @@ def logout_route():
 
 @app.route('/start_interview', methods=['POST'])
 def start_interview():
-    global conversation_history, current_interview_type, tech_question_count, tech_score, hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
+    global conversation_history, current_interview_type
+    global tech_question_count, tech_score, tech_questions_history, tech_answers_history, tech_feedback_history, tech_marks_history
+    global hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
+
     try:
         user_id = session.get("user_id")
         if not user_id:
@@ -442,10 +586,17 @@ def start_interview():
 
         conversation_history = []
         current_interview_type = interview_type
+
         if interview_type == "tech":
             tech_question_count = 0
             tech_score = 0
+            tech_questions_history = []
+            tech_answers_history = []
+            tech_feedback_history = []
+            tech_marks_history = []
+
             question = generate_tech_question()
+            tech_questions_history.append(question)
         else:
             hr_question_count = 0
             hr_score = 0
@@ -455,17 +606,21 @@ def start_interview():
 
         conversation_history.append({"role": "interviewer", "text": question})
         result = {"question": question}
-        
+
         logger.info(f"Start interview response: {result}")
         return jsonify(result)
-    
+
     except Exception as e:
         logger.error(f"Error in start_interview: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/submit_response', methods=['POST'])
 def submit_response():
-    global conversation_history, current_interview_type, tech_question_count, tech_score, hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
+    global conversation_history, current_interview_type
+    global tech_question_count, tech_score, tech_questions_history, tech_answers_history, tech_feedback_history, tech_marks_history
+    global hr_question_count, hr_score, hr_emotions_history, hr_soft_skills_history
+
     try:
         result = {}
 
@@ -522,27 +677,38 @@ def submit_response():
         soft_skills = analyze_soft_skills(response_text, pitch, energy, emotions)
 
         if interview_type == "tech":
+            current_question = ""
+            for entry in reversed(conversation_history[:-1]):
+                if entry["role"] == "interviewer":
+                    current_question = entry["text"]
+                    break
+
             mark = gemini_mark_answer(response_text)
+            feedback_text = generate_tech_answer_feedback(current_question, response_text, mark)
+
             tech_score += mark
             tech_question_count += 1
 
+            tech_answers_history.append(response_text)
+            tech_feedback_history.append(feedback_text)
+            tech_marks_history.append(mark)
+
             if tech_question_count >= MAX_TECH_QUESTIONS:
-                final_message = f"Tech Interview Completed. Your score is {int(hr_score)} out of 20. Check your profile for a detailed report."
+                final_message = f"Tech Interview Completed. Your score is {int(tech_score)} out of 20. Check your profile for a detailed report."
                 conversation_history.append({"role": "interviewer", "text": final_message})
 
                 update_data = {
                     "tech_score": int(tech_score),
+                    "tech_questions_history": tech_questions_history,
+                    "tech_answers_history": tech_answers_history,
+                    "tech_feedback_history": tech_feedback_history,
+                    "tech_marks_history": tech_marks_history,
                     "last_updated": datetime.utcnow().isoformat()
                 }
-                logger.info(f"Attempting to update tech_score to {tech_score} for user_id: {user_id}")
+
+                logger.info(f"Attempting to update tech profile for user_id: {user_id}")
                 update_response = supabase.table("profiles").update(update_data).eq("user_id", user_id).execute()
                 logger.info(f"Tech update response: {update_response.data}")
-
-                profile_check = supabase.table("profiles").select("tech_score").eq("user_id", user_id).execute()
-                if profile_check.data and profile_check.data[0]["tech_score"] == float(tech_score):
-                    logger.info(f"Verified tech_score updated to {tech_score} for user_id: {user_id}")
-                else:
-                    logger.error(f"Failed to verify tech_score update for user_id: {user_id}. Current value: {profile_check.data}")
 
                 result = {
                     "question": final_message,
@@ -552,10 +718,13 @@ def submit_response():
                 }
             else:
                 next_question = generate_tech_question(response_text)
+                tech_questions_history.append(next_question)
                 conversation_history.append({"role": "interviewer", "text": next_question})
+
                 result = {
                     "question": next_question,
-                    "completed": False
+                    "completed": False,
+                    "latest_feedback": feedback_text
                 }
 
         else:
@@ -566,7 +735,7 @@ def submit_response():
             hr_soft_skills_history.append(soft_skills)
 
             if hr_question_count >= MAX_HR_QUESTIONS:
-                final_message = f"HR Interview Completed. Your score is {int(hr_score)} out of 10. Check your profile for a detailed report."
+                final_message = f"HR Interview Completed. Your score is {int(hr_score)} out of 20. Check your profile for a detailed report."
                 conversation_history.append({"role": "interviewer", "text": final_message})
 
                 update_data = {
@@ -588,6 +757,7 @@ def submit_response():
             else:
                 next_question = generate_hr_question()
                 conversation_history.append({"role": "interviewer", "text": next_question})
+
                 result = {
                     "question": next_question,
                     "completed": False,
@@ -608,6 +778,7 @@ def submit_response():
         if os.path.exists("response.wav"):
             os.remove("response.wav")
 
+
 @app.route('/upload_resume', methods=['POST'])
 def upload_resume():
     global extracted_skills
@@ -619,21 +790,26 @@ def upload_resume():
         if 'file' not in request.files:
             logger.error("No file part in request")
             return jsonify({"error": "No file part"}), 400
+
         file = request.files['file']
         if file.filename == '':
             logger.error("No selected file")
             return jsonify({"error": "No selected file"}), 400
+
         if file:
             text = extract_text(file)
             if not text:
                 return jsonify({"error": "Failed to extract text from resume"}), 500
+
             skills = extract_skills(text)
             extracted_skills = skills
             logger.info(f"Extracted skills: {extracted_skills}")
             return jsonify({"skills": extracted_skills})
+
     except Exception as e:
         logger.error(f"Error in upload_resume: {e}")
         return jsonify({"error": str(e)}), 400
+
 
 @app.route('/profile', methods=['GET'])
 def profile():
@@ -647,14 +823,14 @@ def profile():
             return jsonify({"error": "Profile not found"}), 404
 
         profile = profile_data.data[0]
-        logger.info(f"Fetched tech profile for user_id {user_id}: tech_score={profile['tech_score']}")
-        return jsonify({
-            "score": float(profile["tech_score"]), 
-            "max_score": profile["tech_max_score"]
-        })
+        report = build_tech_profile_report(profile)
+        logger.info(f"Generated tech profile report for user_id {user_id}: {report}")
+        return jsonify(report)
+
     except Exception as e:
         logger.error(f"Error in profile route: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": "Unable to generate tech report"}), 500
+
 
 @app.route('/hr_profile', methods=['GET'])
 def hr_profile():
@@ -668,25 +844,29 @@ def hr_profile():
             return jsonify({"error": "Profile not found"}), 404
 
         profile = profile_data.data[0]
-        hr_score = float(profile["hr_score"])
-        MAX_HR_QUESTIONS = profile["hr_max_score"]
-        hr_emotions_history = profile["hr_emotions"]
-        if isinstance(hr_emotions_history, str):
-            hr_emotions_history = json.loads(hr_emotions_history) if hr_emotions_history else []
-        hr_soft_skills_history = profile["hr_soft_skills"]
-        if isinstance(hr_soft_skills_history, str):
-            hr_soft_skills_history = json.loads(hr_soft_skills_history) if hr_soft_skills_history else []
+        hr_score_value = float(profile["hr_score"])
+        max_hr_score = profile["hr_max_score"]
+
+        hr_emotions_history_local = profile["hr_emotions"]
+        if isinstance(hr_emotions_history_local, str):
+            hr_emotions_history_local = json.loads(hr_emotions_history_local) if hr_emotions_history_local else []
+
+        hr_soft_skills_history_local = profile["hr_soft_skills"]
+        if isinstance(hr_soft_skills_history_local, str):
+            hr_soft_skills_history_local = json.loads(hr_soft_skills_history_local) if hr_soft_skills_history_local else []
 
         avg_emotions_description = ""
-        avg_emotions = {}  
-        if hr_emotions_history:
-            for emotion_dict in hr_emotions_history:
-                if emotion_dict:  
+        avg_emotions = {}
+
+        if hr_emotions_history_local:
+            valid_emotion_entries = [emotion_dict for emotion_dict in hr_emotions_history_local if emotion_dict]
+            if valid_emotion_entries:
+                for emotion_dict in valid_emotion_entries:
                     for emotion, value in emotion_dict.items():
                         avg_emotions[emotion] = avg_emotions.get(emotion, 0) + value
-            if avg_emotions:
+
                 for emotion in avg_emotions:
-                    avg_emotions[emotion] /= len(hr_emotions_history)
+                    avg_emotions[emotion] /= len(valid_emotion_entries)
 
                 prominent_emotions = sorted(avg_emotions.items(), key=lambda x: x[1], reverse=True)[:2]
                 if prominent_emotions:
@@ -697,7 +877,7 @@ def hr_profile():
                         avg_emotions_description += f"You showed some {primary_emotion} vibes at times. "
                     else:
                         avg_emotions_description += f"You stayed pretty balanced, with a hint of {primary_emotion}. "
-                    
+
                     if len(prominent_emotions) > 1:
                         secondary_emotion, secondary_value = prominent_emotions[1]
                         if secondary_value > 20:
@@ -710,30 +890,36 @@ def hr_profile():
         confidence_count = {"High": 0, "Low": 0}
         enthusiasm_count = {"High": 0, "Low": 0}
         avg_positivity = 0
-        for skills in hr_soft_skills_history:
-            confidence_count[skills["confidence"]] += 1
-            enthusiasm_count[skills["enthusiasm"]] += 1
-            avg_positivity += skills["positivity"]
-        avg_positivity /= len(hr_soft_skills_history) if hr_soft_skills_history else 1
+
+        for skills in hr_soft_skills_history_local:
+            confidence_count[skills.get("confidence", "Low")] += 1
+            enthusiasm_count[skills.get("enthusiasm", "Low")] += 1
+            avg_positivity += skills.get("positivity", 0)
+
+        avg_positivity /= len(hr_soft_skills_history_local) if hr_soft_skills_history_local else 1
 
         confidence_description = (
-            "You sounded confident most of the time—great job keeping your voice steady!" 
-            if confidence_count["High"] >= confidence_count["Low"] 
+            "You sounded confident most of the time—great job keeping your voice steady!"
+            if confidence_count["High"] >= confidence_count["Low"]
             else "You seemed a bit hesitant at times; try speaking up a little more next time."
         )
+
         enthusiasm_description = (
-            "Your energy was infectious—you really brought some enthusiasm to the table!" 
-            if enthusiasm_count["High"] >= enthusiasm_count["Low"] 
+            "Your energy was infectious—you really brought some enthusiasm to the table!"
+            if enthusiasm_count["High"] >= enthusiasm_count["Low"]
             else "You could perk up a bit; adding some energy might make your answers pop more."
         )
+
         positivity_description = (
-            "Your responses had a nice positive vibe—very uplifting!" if avg_positivity > 0.2 
-            else "You were fairly neutral; maybe sprinkle in some positivity to shine brighter!" if avg_positivity >= -0.2 
+            "Your responses had a nice positive vibe—very uplifting!"
+            if avg_positivity > 0.2
+            else "You were fairly neutral; maybe sprinkle in some positivity to shine brighter!"
+            if avg_positivity >= -0.2
             else "Things felt a bit downbeat; try focusing on the brighter side in your answers."
         )
 
         feedback = []
-        if hr_score < MAX_HR_QUESTIONS * 0.7:
+        if hr_score_value < max_hr_score * 0.7:
             feedback.append("Your answers could use a bit more clarity and polish—try structuring them with a clear start, middle, and end.")
         if confidence_count["Low"] > confidence_count["High"]:
             feedback.append("You might want to practice speaking with more confidence; a louder, steady tone can make a big difference.")
@@ -744,30 +930,30 @@ def hr_profile():
         if "angry" in avg_emotions and avg_emotions["angry"] > 20:
             feedback.append("You seemed a bit frustrated at times; staying calm and composed could help you come across even better.")
 
-        overall_summary = f"Overall, you scored {hr_score} out of {MAX_HR_QUESTIONS}, which is "
-        if hr_score >= MAX_HR_QUESTIONS * 0.9:
-            overall_summary += "fantastic—you're really shining in these interviews! "
-        elif hr_score >= MAX_HR_QUESTIONS * 0.7:
+        overall_summary = f"Overall, you scored {hr_score_value} out of {max_hr_score}, which is "
+        if hr_score_value >= max_hr_score * 0.9:
+            overall_summary += "fantastic—you’re really shining in these interviews! "
+        elif hr_score_value >= max_hr_score * 0.7:
             overall_summary += "solid—you’re doing well with room to polish a few things. "
         else:
             overall_summary += "a good start—there’s definitely potential to build on! "
 
         areas_to_improve = []
-        if hr_score < MAX_HR_QUESTIONS * 0.9:
+        if hr_score_value < max_hr_score * 0.9:
             if confidence_count["Low"] > confidence_count["High"] or enthusiasm_count["Low"] > enthusiasm_count["High"]:
                 areas_to_improve.append("working on your delivery—confidence and enthusiasm can really elevate your presence")
             if avg_positivity < 0.2:
                 areas_to_improve.append("adding a bit more positivity to your tone—it can make you more memorable")
-            if hr_score < MAX_HR_QUESTIONS * 0.7:
+            if hr_score_value < max_hr_score * 0.7:
                 areas_to_improve.append("structuring your answers more clearly—think about giving concise examples with impact")
             if not areas_to_improve:
                 areas_to_improve.append("fine-tuning small details to push your performance to the next level")
-        
+
         overall_summary += "To improve, focus on " + " and ".join(areas_to_improve) + ". Keep practicing, and you’ll get even stronger!"
 
         report = {
-            "score": hr_score,
-            "max_score": MAX_HR_QUESTIONS,
+            "score": hr_score_value,
+            "max_score": max_hr_score,
             "emotions": avg_emotions_description,
             "confidence": confidence_description,
             "enthusiasm": enthusiasm_description,
@@ -775,11 +961,14 @@ def hr_profile():
             "feedback": feedback if feedback else ["You’re doing great—keep it up with consistent practice!"],
             "overall_summary": overall_summary
         }
+
         logger.info(f"HR profile report: {report}")
         return jsonify(report)
+
     except Exception as e:
         logger.error(f"Error generating HR profile: {e}")
         return jsonify({"error": "Unable to generate report"}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
